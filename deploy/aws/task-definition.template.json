@@ -1,0 +1,36 @@
+{
+  "family": "__SERVICE_NAME__",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::__ACCOUNT_ID__:role/ecsTaskExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "__SERVICE_NAME__",
+      "image": "__ACCOUNT_ID__.dkr.ecr.__REGION__.amazonaws.com/__SERVICE_NAME__:latest",
+      "essential": true,
+      "portMappings": [
+        { "name": "__SERVICE_NAME__", "containerPort": __PORT__, "protocol": "tcp", "appProtocol": "http" }
+      ],
+      "environment": [
+        { "name": "DB_URL", "value": "jdbc:postgresql://__RDS_ENDPOINT__:5432/__DB_NAME__" },
+        { "name": "DB_USER", "value": "__DB_USER__" },
+        { "name": "KAFKA_BOOTSTRAP_SERVERS", "value": "__MSK_TLS_BROKERS__" },
+        { "name": "SPRING_KAFKA_SECURITY_PROTOCOL", "value": "SSL" }
+      ],
+      "secrets": [
+        { "name": "DB_PASSWORD", "valueFrom": "arn:aws:secretsmanager:__REGION__:__ACCOUNT_ID__:secret:__SECRET_NAME__" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/__SERVICE_NAME__",
+          "awslogs-region": "__REGION__",
+          "awslogs-stream-prefix": "ecs",
+          "awslogs-create-group": "true"
+        }
+      }
+    }
+  ]
+}

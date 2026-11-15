@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Aggregator only: lets you run `mvn verify` for all three services from the repo root.
+     Each service is a standalone Spring Boot project so it can be built in its own Docker context. -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.claimsplatform</groupId>
+    <artifactId>claims-platform</artifactId>
+    <version>1.0.0</version>
+    <packaging>pom</packaging>
+    <modules>
+        <module>claims-service</module>
+        <module>reporting-service</module>
+        <module>api-gateway</module>
+    </modules>
+</project>

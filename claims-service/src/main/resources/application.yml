@@ -1,0 +1,44 @@
+server:
+  port: 8091
+
+spring:
+  application:
+    name: claims-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/claims_db}
+    username: ${DB_USER:claims}
+    password: ${DB_PASSWORD:claims}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none        # schema is owned by Flyway
+  flyway:
+    enabled: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+
+claims:
+  kafka:
+    topic: ${CLAIM_EVENTS_TOPIC:claim-events}
+    partitions: ${CLAIM_EVENTS_PARTITIONS:3}
+    replicas: ${CLAIM_EVENTS_REPLICAS:1}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs

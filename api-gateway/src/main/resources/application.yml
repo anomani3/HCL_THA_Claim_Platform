@@ -1,0 +1,56 @@
+server:
+  port: 8090
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOriginPatterns: "*"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+      routes:
+        # ---- business APIs ----
+        - id: claims-api
+          uri: ${CLAIMS_SERVICE_URL:http://localhost:8091}
+          predicates:
+            - Path=/api/claims/**
+        - id: reporting-api
+          uri: ${REPORTING_SERVICE_URL:http://localhost:8092}
+          predicates:
+            - Path=/api/reports/**
+        # ---- downstream OpenAPI specs, exposed so one Swagger UI documents everything ----
+        - id: claims-docs
+          uri: ${CLAIMS_SERVICE_URL:http://localhost:8081}
+          predicates:
+            - Path=/docs/claims/**
+          filters:
+            - RewritePath=/docs/claims/(?<segment>.*), /$\{segment}
+        - id: reporting-docs
+          uri: ${REPORTING_SERVICE_URL:http://localhost:8082}
+          predicates:
+            - Path=/docs/reporting/**
+          filters:
+            - RewritePath=/docs/reporting/(?<segment>.*), /$\{segment}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    urls:
+      - name: Claims Service
+        url: /docs/claims/v3/api-docs
+      - name: Reporting Service
+        url: /docs/reporting/v3/api-docs
