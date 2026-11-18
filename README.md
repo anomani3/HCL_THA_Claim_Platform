@@ -40,6 +40,18 @@ docker compose up --build
 
 Services retry until Postgres/Kafka are ready (`restart: on-failure`), so the first start may log a few connection errors.
 
+### Run the React workspace
+
+Start the backend with Docker Compose, then run the frontend in a second terminal:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open http://localhost:5173. The Vite development server proxies `/api` requests to the gateway at `http://localhost:8080` by default. Set `VITE_API_TARGET` in `frontend/.env` to point it at a different gateway.
+
 ### Run without Docker (dev)
 
 ```bash

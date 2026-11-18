@@ -14,6 +14,10 @@ spring:
             allowedHeaders: "*"
       routes:
         # ---- business APIs ----
+        - id: accounts-api
+          uri: ${CLAIMS_SERVICE_URL:http://localhost:8091}
+          predicates:
+            - Path=/api/auth/**,/api/accounts/**
         - id: claims-api
           uri: ${CLAIMS_SERVICE_URL:http://localhost:8091}
           predicates:

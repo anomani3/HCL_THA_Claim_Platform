@@ -29,6 +29,15 @@ claims:
     partitions: ${CLAIM_EVENTS_PARTITIONS:3}
     replicas: ${CLAIM_EVENTS_REPLICAS:1}
 
+security:
+  jwt:
+    secret: ${JWT_SECRET:development-only-secret-key-change-this-32-bytes}
+    ttl: ${JWT_TTL:PT8H}
+  bootstrap-manager:
+    email: ${BOOTSTRAP_MANAGER_EMAIL:}
+    password: ${BOOTSTRAP_MANAGER_PASSWORD:}
+    name: ${BOOTSTRAP_MANAGER_NAME:Platform Manager}
+
 management:
   endpoints:
     web:

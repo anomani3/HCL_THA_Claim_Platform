@@ -40,6 +40,10 @@ services:
       DB_USER: postgres
       DB_PASSWORD: postgres
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      JWT_SECRET: ${JWT_SECRET:-development-jwt-secret-change-this-32-bytes}
+      BOOTSTRAP_MANAGER_EMAIL: ${BOOTSTRAP_MANAGER_EMAIL:-manager@northstar.local}
+      BOOTSTRAP_MANAGER_PASSWORD: ${BOOTSTRAP_MANAGER_PASSWORD:-ChangeMeNow123!}
+      BOOTSTRAP_MANAGER_NAME: ${BOOTSTRAP_MANAGER_NAME:-Northstar Manager}
     depends_on:
       postgres:
         condition: service_healthy
@@ -56,6 +60,7 @@ services:
       DB_USER: postgres
       DB_PASSWORD: postgres
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      JWT_SECRET: ${JWT_SECRET:-development-jwt-secret-change-this-32-bytes}
     depends_on:
       postgres:
         condition: service_healthy
@@ -75,7 +80,7 @@ services:
       - reporting-service
     restart: on-failure
     ports:
-      - "8080:8080"
+      - "8080:8090"
 
 volumes:
   pgdata:
