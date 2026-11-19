@@ -91,7 +91,7 @@ function ClaimsWorkspace({ session, onSignOut }) {
   const [marketFilter, setMarketFilter] = useState('')
   const [currentPage, setCurrentPage] = useState(0)
   const [showCreate, setShowCreate] = useState(false)
-  const [createForm, setCreateForm] = useState(blankClaim)
+  const [createForm, setCreateForm] = useState({ ...blankClaim, claimantId: session.accountId, claimantName: session.fullName, claimantEmail: session.email })
   const [createBusy, setCreateBusy] = useState(false)
   const [trackNumber, setTrackNumber] = useState('')
   const [trackEmail, setTrackEmail] = useState('')

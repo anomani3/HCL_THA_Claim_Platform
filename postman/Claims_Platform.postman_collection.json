@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Claims Platform",
-    "description": "All requests go through the API gateway (baseUrl). Start with the 'Lifecycle walkthrough' folder and run it in order (Runner or newman): it creates claims, drives them through the state machine, and includes negative tests (409 / 403 / 422 / 400). Then run 'Reports'.",
+    "description": "Requests use bearer JWTs. Run Authentication setup once on a fresh database, then the role-aware lifecycle walkthrough, claimant/officer examples, and manager reports.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -23,6 +23,9 @@
                 "health"
               ],
               "query": []
+            },
+            "auth": {
+              "type": "noauth"
             }
           },
           "response": [],
@@ -55,6 +58,9 @@
                 "api-docs"
               ],
               "query": []
+            },
+            "auth": {
+              "type": "noauth"
             }
           },
           "response": [],
@@ -87,6 +93,9 @@
                 "api-docs"
               ],
               "query": []
+            },
+            "auth": {
+              "type": "noauth"
             }
           },
           "response": [],
@@ -97,6 +106,375 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "0a. Authentication setup (run once)",
+      "description": "Run once per fresh database and set of Postman emails. Manager credentials come from the selected environment. Creates two officers and two claimant accounts, then saves their access tokens as collection variables.",
+      "item": [
+        {
+          "name": "1. Manager sign in",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{managerEmail}}\",\n  \"password\": \"{{managerPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"manager login succeeds\", () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json(); pm.collectionVariables.set(\"managerToken\", j.accessToken);",
+                  "pm.collectionVariables.set(\"accessToken\", j.accessToken);",
+                  "pm.test(\"account role is MANAGER\", () => pm.expect(j.account.role).to.eql(\"MANAGER\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Create officer 1",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/accounts/officers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "accounts",
+                "officers"
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Jordan Lee\",\n  \"email\": \"{{officerEmail}}\",\n  \"temporaryPassword\": \"{{officerPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"officer 1 created\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"officerId\", pm.response.json().accountId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. Create officer 2",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/accounts/officers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "accounts",
+                "officers"
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Morgan Chen\",\n  \"email\": \"{{officerTwoEmail}}\",\n  \"temporaryPassword\": \"{{officerTwoPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"officer 2 created\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"officerId2\", pm.response.json().accountId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. Sign in officer 1",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{officerEmail}}\",\n  \"password\": \"{{officerPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"officer 1 login succeeds\", () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json(); pm.collectionVariables.set(\"officerToken\", j.accessToken);",
+                  "pm.test(\"account role is OFFICER\", () => pm.expect(j.account.role).to.eql(\"OFFICER\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5. Sign in officer 2",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{officerTwoEmail}}\",\n  \"password\": \"{{officerTwoPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"officer 2 login succeeds\", () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json(); pm.collectionVariables.set(\"officer2Token\", j.accessToken);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "6. Create claimant 1",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Tan Wei Ming\",\n  \"email\": \"{{claimantEmail}}\",\n  \"password\": \"{{claimantPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"claimant 1 registered\", () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json(); pm.collectionVariables.set(\"claimantToken\", j.accessToken);",
+                  "pm.collectionVariables.set(\"claimantId\", j.account.accountId);",
+                  "pm.test(\"self-registration is claimant role\", () => pm.expect(j.account.role).to.eql(\"CLAIMANT\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "7. Create claimant 2",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Chan Mei Ling\",\n  \"email\": \"{{claimantTwoEmail}}\",\n  \"password\": \"{{claimantTwoPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"claimant 2 registered\", () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json(); pm.collectionVariables.set(\"claimant2Token\", j.accessToken);",
+                  "pm.collectionVariables.set(\"claimantId2\", j.account.accountId);"
                 ]
               }
             }
@@ -140,6 +518,15 @@
           },
           "response": [],
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"accessToken\", pm.collectionVariables.get(\"claimantToken\"));"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
@@ -189,6 +576,15 @@
           "response": [],
           "event": [
             {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"accessToken\", pm.collectionVariables.get(\"claimant2Token\"));"
+                ]
+              }
+            },
+            {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
@@ -222,10 +618,22 @@
                   "value": "{{claimantEmail}}"
                 }
               ]
+            },
+            "auth": {
+              "type": "noauth"
             }
           },
           "response": [],
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"accessToken\", pm.collectionVariables.get(\"claimantToken\"));"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
@@ -266,6 +674,15 @@
           },
           "response": [],
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"accessToken\", pm.collectionVariables.get(\"officerToken\"));"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
@@ -314,6 +731,15 @@
           "response": [],
           "event": [
             {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"accessToken\", pm.collectionVariables.get(\"officerToken\"));"
+                ]
+              }
+            },
+            {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
@@ -361,6 +787,15 @@
           "response": [],
           "event": [
             {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"accessToken\", pm.collectionVariables.get(\"officerToken\"));"
+                ]
+              }
+            },
+            {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
@@ -407,6 +842,15 @@
           "response": [],
           "event": [
             {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"accessToken\", pm.collectionVariables.get(\"officer2Token\"));"
+                ]
+              }
+            },
+            {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
@@ -452,6 +896,15 @@
           },
           "response": [],
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"accessToken\", pm.collectionVariables.get(\"officerToken\"));"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
@@ -500,6 +953,15 @@
           "response": [],
           "event": [
             {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"accessToken\", pm.collectionVariables.get(\"claimantToken\"));"
+                ]
+              }
+            },
+            {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
@@ -547,6 +1009,15 @@
           "response": [],
           "event": [
             {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"accessToken\", pm.collectionVariables.get(\"officerToken\"));"
+                ]
+              }
+            },
+            {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
@@ -592,6 +1063,15 @@
           },
           "response": [],
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"accessToken\", pm.collectionVariables.get(\"officerToken\"));"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
@@ -640,6 +1120,15 @@
           "response": [],
           "event": [
             {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"accessToken\", pm.collectionVariables.get(\"officerToken\"));"
+                ]
+              }
+            },
+            {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
@@ -687,6 +1176,15 @@
           "response": [],
           "event": [
             {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"accessToken\", pm.collectionVariables.get(\"officerToken\"));"
+                ]
+              }
+            },
+            {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
@@ -721,6 +1219,15 @@
           "response": [],
           "event": [
             {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"accessToken\", pm.collectionVariables.get(\"officerToken\"));"
+                ]
+              }
+            },
+            {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
@@ -738,7 +1245,7 @@
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/claims/queue/pick?officerId=OFFICER-02&market=HK",
+              "raw": "{{baseUrl}}/api/claims/queue/pick?market=HK",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -750,10 +1257,6 @@
               ],
               "query": [
                 {
-                  "key": "officerId",
-                  "value": "OFFICER-02"
-                },
-                {
                   "key": "market",
                   "value": "HK"
                 }
@@ -762,6 +1265,15 @@
           },
           "response": [],
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"accessToken\", pm.collectionVariables.get(\"officer2Token\"));"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
@@ -811,6 +1323,15 @@
           "response": [],
           "event": [
             {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"accessToken\", pm.collectionVariables.get(\"officer2Token\"));"
+                ]
+              }
+            },
+            {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
@@ -858,6 +1379,15 @@
           "response": [],
           "event": [
             {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"accessToken\", pm.collectionVariables.get(\"officer2Token\"));"
+                ]
+              }
+            },
+            {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
@@ -901,6 +1431,15 @@
           },
           "response": [],
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"accessToken\", pm.collectionVariables.get(\"claimantToken\"));"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
@@ -986,6 +1525,9 @@
                   "value": "{{claimantEmail}}"
                 }
               ]
+            },
+            "auth": {
+              "type": "noauth"
             }
           },
           "response": []
@@ -1104,6 +1646,17 @@
           },
           "response": []
         }
+      ],
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.set(\"accessToken\", pm.collectionVariables.get(\"claimantToken\"));"
+            ]
+          }
+        }
       ]
     },
     {
@@ -1199,7 +1752,7 @@
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/claims/queue/pick?officerId={{officerId}}",
+              "raw": "{{baseUrl}}/api/claims/queue/pick",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1209,12 +1762,7 @@
                 "queue",
                 "pick"
               ],
-              "query": [
-                {
-                  "key": "officerId",
-                  "value": "{{officerId}}"
-                }
-              ]
+              "query": []
             }
           },
           "response": []
@@ -1450,6 +1998,17 @@
           },
           "response": []
         }
+      ],
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.set(\"accessToken\", pm.collectionVariables.get(\"officerToken\"));"
+            ]
+          }
+        }
       ]
     },
     {
@@ -1652,5 +2211,15 @@
       "key": "officerId",
       "value": "OFFICER-01"
     }
-  ]
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  }
 }

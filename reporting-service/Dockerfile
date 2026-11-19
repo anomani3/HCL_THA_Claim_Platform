@@ -10,5 +10,5 @@ WORKDIR /app
 RUN useradd -r -u 1001 app
 COPY --from=build /build/target/reporting-service.jar app.jar
 USER app
-EXPOSE 8082
+EXPOSE 8092
 ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "app.jar"]

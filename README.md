@@ -1,6 +1,6 @@
-# Claims Platform (Chubb APAC take-home)
+﻿# Claims Platform (Chubb APAC take-home)
 
-Backend for motor & property claims: claimants report and track claims; claims officers pick up, assess and settle them; managers see workload, performance and outstanding liability exposure.
+Claims platform for motor and property: claimants report and track claims; officers pick up, assess and settle them; managers see workload, performance, exposure and provision officer accounts.
 
 Java 17 · Spring Boot 3.3 · Spring Cloud Gateway · PostgreSQL · Kafka · Docker · Swagger UI (OpenAPI) · AWS (ECS Fargate)
 
@@ -12,7 +12,7 @@ Java 17 · Spring Boot 3.3 · Spring Cloud Gateway · PostgreSQL · Kafka · Doc
         ▼
  ┌──────────────┐  /api/claims/**   ┌────────────────┐   claim-events   ┌───────────────────┐
  │ api-gateway  │ ────────────────► │ claims-service │ ───── Kafka ────►│ reporting-service │
- │ :8080        │                   │ :8081          │                  │ :8082             │
+ │ :8090        │                   │ :8091          │                  │ :8092             │
  │ Swagger UI   │  /api/reports/**  │ (write model,  │                  │ (read model,      │
  │              │ ────────────────► │  state machine)│                  │  aggregates)      │
  └──────────────┘                   └───────┬────────┘                  └─────────┬─────────┘
@@ -20,7 +20,7 @@ Java 17 · Spring Boot 3.3 · Spring Cloud Gateway · PostgreSQL · Kafka · Doc
                                        claims_db (Postgres)               reporting_db (Postgres)
 ```
 
-Full reasoning (service boundaries, sync vs Kafka, data model, trade-offs): [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+Runtime ports are 8090/8091/8092 inside containers and 8080/8081/8082 on the Compose host. Full reasoning (service boundaries, sync vs Kafka, data model, trade-offs): [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
 ## Run locally
 
@@ -34,9 +34,9 @@ docker compose up --build
 |---|---|
 | Swagger UI (both services documented) | http://localhost:8080/swagger-ui.html |
 | API via gateway | http://localhost:8080/api/claims , http://localhost:8080/api/reports/workload |
-| Claims service direct | http://localhost:8081 |
-| Reporting service direct | http://localhost:8082 |
-| Postgres | localhost:5432 (user `postgres` / `postgres`; per-service users `claims`, `reporting`) |
+| Claims service direct | http://localhost:8081 (container port 8091) |
+| Reporting service direct | http://localhost:8082 (container port 8092) |
+| Postgres | localhost:5433 (user `postgres` / `postgres`; per-service users `claims`, `reporting`) |
 
 Services retry until Postgres/Kafka are ready (`restart: on-failure`), so the first start may log a few connection errors.
 
@@ -52,6 +52,8 @@ npm run dev
 
 Open http://localhost:5173. The Vite development server proxies `/api` requests to the gateway at `http://localhost:8080` by default. Set `VITE_API_TARGET` in `frontend/.env` to point it at a different gateway.
 
+Claimants can create accounts from the sign-in page. The Compose setup creates the initial manager account `manager@northstar.local` with password `ChangeMeNow123!`; change these development credentials with `BOOTSTRAP_MANAGER_EMAIL` and `BOOTSTRAP_MANAGER_PASSWORD` before startup. Managers create officer accounts from **Team accounts**. The UI receives permissions from the account role in the signed access token. For deployments, set a private random `JWT_SECRET` (at least 32 bytes) identically for claims-service and reporting-service, and set a private bootstrap manager password. Do not use the Compose development credentials in a deployed environment.
+
 ### Run without Docker (dev)
 
 ```bash
@@ -62,10 +64,12 @@ cd reporting-service && mvn spring-boot:run
 cd api-gateway       && mvn spring-boot:run
 ```
 
+Set `BOOTSTRAP_MANAGER_EMAIL`, `BOOTSTRAP_MANAGER_PASSWORD`, and the same `JWT_SECRET` in the claims-service and reporting-service environments before starting those services. Without the bootstrap values, a manager account must already exist in the accounts table. Services listen on container ports 8090 (gateway), 8091 (claims) and 8092 (reporting); Compose maps them to host ports 8080, 8081 and 8082.
+
 ### Tests
 
 ```bash
-mvn test        # from repo root; state-machine and exposure unit tests in claims-service
+mvn test        # from repo root; state-machine and reporting mapper unit tests
 ```
 
 ## Try it with Postman
@@ -75,15 +79,16 @@ Import from `postman/`:
 1. `Claims_Platform.postman_collection.json`
 2. `local.postman_environment.json` (select it; `aws.postman_environment.json` is for the deployed ALB)
 
-Run folder **"1. Lifecycle walkthrough"** in order (Collection Runner, or `newman run postman/Claims_Platform.postman_collection.json -e postman/local.postman_environment.json --folder "1. Lifecycle walkthrough (run in order)"`). It submits claims, runs the full happy path (assign → request info → provide info → assess → approve → settle), a rejection path, and negative cases (409 illegal transition, 403 wrong officer, 422 business rule, 400 validation). Then run **"4. Reports"** – reports are eventually consistent, so give Kafka a second.
+On a fresh local database, use Postman's Collection Runner to run **"0a. Authentication setup (run once)"** first, then **"1. Lifecycle walkthrough (run in order)"**, then **"4. Reports (managers)"** in the same Postman collection session so saved tokens and generated IDs remain available. Setup uses the bootstrap manager credentials to create two officers and two claimant accounts. Run setup once per set of Postman emails. Allow Kafka time to update the reporting projection before running reports.
 
 ## API summary
 
 | Actor | Endpoint |
 |---|---|
+| Account | `POST /api/auth/register` (claimant) · `POST /api/auth/login` · `GET /api/auth/me` · manager `POST /api/accounts/officers` |
 | Claimant | `POST /api/claims` · `GET /api/claims/track/{claimNumber}?email=` · `POST /api/claims/{id}/provide-info` · `POST /api/claims/{id}/withdraw` |
-| Officer | `GET /api/claims?unassigned=true&status=SUBMITTED` (queue) · `POST /api/claims/queue/pick?officerId=` · `GET /api/claims?assignedOfficerId=&openOnly=true` (my work) · `POST /api/claims/{id}/{assign,request-info,assess,approve,reject,settle}` |
-| Anyone | `GET /api/claims/{id}` (includes `allowedActions`) · `GET /api/claims/{id}/history` |
+| Officer | `GET /api/claims?unassigned=true` (queue) · `POST /api/claims/queue/pick` · `GET /api/claims?openOnly=true` (my work) · `POST /api/claims/{id}/{assign,request-info,assess,approve,reject,settle}` |
+| Authenticated owner / officer / manager | `GET /api/claims/{id}` (includes `allowedActions`) · `GET /api/claims/{id}/history` |
 | Manager | `GET /api/reports/{workload,exposure,performance,summary}` |
 
 Claim lifecycle: `SUBMITTED → UNDER_REVIEW ⇄ INFO_REQUESTED`, `UNDER_REVIEW → ASSESSED → APPROVED → SETTLED`, with `REJECTED` (from UNDER_REVIEW / ASSESSED) and `WITHDRAWN` (before assessment).
@@ -94,10 +99,9 @@ See [docs/AWS_DEPLOYMENT.md](docs/AWS_DEPLOYMENT.md) (ECR + ECS Fargate + RDS Po
 
 ## Deliberate shortcuts (be ready to discuss)
 
-- **No authentication/authorisation.** Actor identity is a field in the request body (`actorId`); the service enforces "assigned officer only" / "claimant only" rules but does not verify who the caller is. Production: OIDC/JWT validated at the gateway, roles from token claims.
+- **Authentication uses shared-key JWTs.** Claims-service signs tokens and stores bcrypt password hashes; claims-service and reporting-service validate roles locally. Production should use an OIDC provider and key rotation rather than a manually shared HMAC secret.
 - **Dual-write on events:** events are sent after DB commit; a crash in between loses the event. Production fix: transactional outbox.
 - **No dead-letter topic** on the consumer; no schema registry.
 - No file/document upload for "provide additional information" – free-text only.
-- Integration tests with Testcontainers not written yet; only domain unit tests.
+- Integration tests with Testcontainers (Postgres + Kafka) are not written yet.
 - `ddl-auto: none` and Flyway own the schema.
-- Image/compile status: see the note in the chat hand-off – the code was written without being able to run Maven/Docker in the authoring environment.

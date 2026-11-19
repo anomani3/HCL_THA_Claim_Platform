@@ -10,5 +10,5 @@ WORKDIR /app
 RUN useradd -r -u 1001 app
 COPY --from=build /build/target/api-gateway.jar app.jar
 USER app
-EXPOSE 8080
+EXPOSE 8090
 ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "app.jar"]

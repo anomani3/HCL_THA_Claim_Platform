@@ -51,7 +51,7 @@ services:
         condition: service_started
     restart: on-failure
     ports:
-      - "8081:8081"
+      - "8081:8091"
 
   reporting-service:
     build: ./reporting-service
@@ -68,13 +68,13 @@ services:
         condition: service_started
     restart: on-failure
     ports:
-      - "8082:8082"
+      - "8082:8092"
 
   api-gateway:
     build: ./api-gateway
     environment:
-      CLAIMS_SERVICE_URL: http://claims-service:8081
-      REPORTING_SERVICE_URL: http://reporting-service:8082
+      CLAIMS_SERVICE_URL: http://claims-service:8091
+      REPORTING_SERVICE_URL: http://reporting-service:8092
     depends_on:
       - claims-service
       - reporting-service

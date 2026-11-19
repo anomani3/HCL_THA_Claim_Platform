@@ -34,8 +34,8 @@ security:
     secret: ${JWT_SECRET:development-only-secret-key-change-this-32-bytes}
     ttl: ${JWT_TTL:PT8H}
   bootstrap-manager:
-    email: ${BOOTSTRAP_MANAGER_EMAIL:}
-    password: ${BOOTSTRAP_MANAGER_PASSWORD:}
+    email: ${BOOTSTRAP_MANAGER_EMAIL:thaclaimmanager@tha.com}
+    password: ${BOOTSTRAP_MANAGER_PASSWORD:123456789012}
     name: ${BOOTSTRAP_MANAGER_NAME:Platform Manager}
 
 management:

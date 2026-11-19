@@ -67,8 +67,12 @@ public class AccountService {
     @Transactional
     public AccountView bootstrapManager(String fullName, String email, String password) {
         String normalized = normalizeEmail(email);
-        return accounts.findByEmailIgnoreCase(normalized).map(AccountView::from)
-                .orElseGet(() -> AccountView.from(create(fullName, normalized, password, AccountRole.MANAGER)));
+        return accounts.findByEmailIgnoreCase(normalized).map(existing -> {
+            if (existing.getRole() != AccountRole.MANAGER) {
+                throw new IllegalStateException("Bootstrap manager email belongs to a non-manager account");
+            }
+            return AccountView.from(existing);
+        }).orElseGet(() -> AccountView.from(create(fullName, normalized, password, AccountRole.MANAGER)));
     }
 
     private Account create(String fullName, String email, String rawPassword, AccountRole role) {

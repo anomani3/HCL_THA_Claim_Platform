@@ -30,13 +30,26 @@
 
 **Your call:** Can you explain what happens when two officers call `/queue/pick` at the same instant versus `/assign` on the same id?
 
-## Entry 5 – Shortcuts the AI took (challenge these)
+## Entry 5 – Remaining shortcuts (challenge these)
 
-- No authentication; `actorId` is trusted from the request body.
 - Event published after commit, not via an outbox → possible lost event.
 - No consumer DLT.
 - `ddl-auto: none` + Flyway; no Testcontainers tests.
-- **The code was authored without being compiled or run** (no Maven/Docker network in the authoring environment). First thing to do: `docker compose up --build`, run the Postman walkthrough and fix anything that surfaces – log each fix here as an "override/correction".
+- Authentication currently uses a shared HS256 secret rather than an identity provider; production needs secret rotation, revocation and account recovery.
+- Account role and ownership checks are enforced in the API, but automated integration tests against PostgreSQL/Kafka have not been added.
+- The browser stores access tokens in local storage; production should consider a hardened cookie/session strategy and XSS controls.
+
+## Entry 6 – Accounts, JWT authentication and role-aware UI
+
+**Asked:** Add backend accounts for the login flows already present in the React workspace, and make the role-based login enforce claimant, officer and manager access.
+
+**Implemented:** Added the account table and account service within claims-service, claimant signup, BCrypt password verification, signed HS256 access tokens, a configurable bootstrap manager, and manager-provisioned officer accounts. Claims-service and reporting-service validate the same JWT secret. Claimant and officer claim queries are scoped to the token subject; action actor IDs come from the token rather than the request body. The React app now signs in, signs up claimants, displays role-specific screens, and sends the bearer token to the API.
+
+**Decision:** Keep account persistence in claims-service rather than introduce a fourth deployable. Claims and claimant identity are both needed on claim creation and action audit records, while the gateway remains a router rather than a token issuer. Reporting-service validates tokens locally and does not read the account database.
+
+**Setup:** Docker Compose bootstraps a development manager (`manager@northstar.local` / `ChangeMeNow123!`) and shares `JWT_SECRET` between services. These defaults are for local use only; deployment secrets must be changed. Claimants self-register; managers create officer accounts from Team accounts.
+
+**Build verification:** Claims-service and reporting-service Maven package builds and the frontend production build completed. Maven test execution was skipped during this verification; account/security integration tests remain to be added.
 
 ## Template for further entries
 
