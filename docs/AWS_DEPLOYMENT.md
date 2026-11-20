@@ -82,6 +82,8 @@ Register one task definition per service (template: `deploy/aws/task-definition.
 
 Store the same randomly generated `JWT_SECRET` (at least 32 bytes) in Secrets Manager and inject it into both claims-service and reporting-service. Do not use the Compose development secret. The first manager is inserted by claims-service only when both bootstrap email and password are configured; after startup, create officer accounts from the manager UI. Set the `JWT_SECRET` and manager password as ECS task secrets, not plaintext task environment values.
 
+**Before launch:** the service `application.yml` files contain local fallback values for JWT, database, and bootstrap-manager credentials. Explicitly configure production values for every service; never let a task start using those fallbacks. Restrict Swagger/OpenAPI access or disable it in production.
+
 Sizing to start: 0.5 vCPU / 1 GB per service. The task execution role needs ECR pull, CloudWatch Logs and `secretsmanager:GetSecretValue`.
 
 Create three ECS services (Fargate, private subnets, `desiredCount` 2 for claims/gateway, 1 for reporting). Use container ports 8090, 8091 and 8092 to match Spring's `server.port` settings. Enable **Service Connect** with aliases `claims-service:8091` and `reporting-service:8092` so the gateway resolves them by name. The generic task template's `__PORT__` must be set to the matching container port for each service.
@@ -94,20 +96,49 @@ Create three ECS services (Fargate, private subnets, `desiredCount` 2 for claims
 - Listener 80 (add 443 + ACM certificate for real use) → `gateway-tg`.
 - Attach `gateway-tg` to the api-gateway ECS service.
 
-## 7. Verify
+## 7. React website and public domain
 
-```bash
-ALB=$(aws elbv2 describe-load-balancers --names claims-alb --query 'LoadBalancers[0].DNSName' --output text)
-curl http://$ALB/actuator/health
-open http://$ALB/swagger-ui.html
+The React app is a static Vite build; it is not included in the three backend ECS services. Host it in a private S3 bucket and serve it through CloudFront. Use separate site and API hostnames, for example `app.example.com` and `api.example.com`:
+
+```text
+Browser ── HTTPS ──► CloudFront ──► private S3 bucket (React assets)
+   │
+   └── HTTPS API calls ──► api.example.com ──► ALB ──► api-gateway (ECS)
 ```
 
-Put `http://<ALB DNS>` into `postman/aws.postman_environment.json`. Set the manager email/password to the deployed bootstrap account and use unique test emails/passwords for the two officers and claimants. Run **0a. Authentication setup** once for those accounts, then run the lifecycle and manager report folders. Avoid committing deployment credentials to the environment file.
+1. Register the domain or create a Route 53 hosted zone for it.
+2. Request a public ACM certificate for `app.example.com` in **us-east-1** for CloudFront. Request a separate certificate for `api.example.com` in the ALB's region. Complete DNS validation.
+3. Create a private S3 bucket for the built site. Do not enable public bucket access or use the S3 website endpoint. Create a CloudFront distribution with the S3 bucket as origin and Origin Access Control (OAC) so only CloudFront can read the assets.
+4. Add the `app.example.com` alternate domain to CloudFront and attach its certificate. Configure Route 53 `A/AAAA` alias records for `app.example.com` to the distribution. Redirect viewer HTTP to HTTPS.
+5. Add an HTTPS listener on the ALB using the `api.example.com` certificate, and create a Route 53 alias from `api.example.com` to the ALB. Redirect ALB HTTP to HTTPS. Keep only the gateway behind the ALB; claims-service and reporting-service remain private.
+6. Restrict gateway CORS to `https://app.example.com` (including the `Authorization` and `Content-Type` headers). The current gateway configuration allows any origin, so change that before launch.
+7. Build the frontend with the production API URL and upload the generated `dist` directory:
 
-## 8. Production hardening (not done)
+   ```bash
+   cd frontend
+   npm ci
+   VITE_API_BASE=https://api.example.com npm run build
+   export SITE_BUCKET=your-globally-unique-site-bucket
+   export CLOUDFRONT_DISTRIBUTION_ID=your-distribution-id
+   aws s3 sync dist/ "s3://${SITE_BUCKET}/" --delete
+   aws cloudfront create-invalidation --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" --paths '/*'
+   ```
+
+   `VITE_API_BASE` is a public URL, not a secret. Do not put credentials or tokens in frontend build variables. Set CloudFront caching so HTML is revalidated promptly and fingerprinted assets can be cached for a long time. If the frontend later adds client-side routes, configure CloudFront's not-found handling to serve `/index.html` for those routes.
+
+## 8. Verify
+
+```bash
+curl https://api.example.com/actuator/health
+open https://app.example.com
+```
+
+Set `https://api.example.com` as the base URL in `postman/aws.postman_environment.json`. Set the manager email/password to the deployed bootstrap account and use unique test emails/passwords for the two officers and claimants. Run **0a. Authentication setup** once for those accounts, then run the lifecycle and manager report folders. Avoid committing deployment credentials to the environment file. Keep Swagger/OpenAPI private or disabled in production.
+
+## 9. Production hardening (not done)
 
 HTTPS only; WAF + rate limiting; replace the current shared-key JWT with an OIDC provider and key rotation; add password reset/MFA and stronger session/token revocation; hide Swagger UI behind auth or disable; RDS Multi-AZ + backups; MSK IAM auth; autoscaling policies; CloudWatch alarms (5xx, consumer lag, RDS CPU); CI/CD (GitHub Actions → ECR → `aws ecs update-service --force-new-deployment`); IaC (Terraform/CDK) instead of CLI steps.
 
-## 9. Tear down
+## 10. Tear down
 
 Delete ECS services → cluster → ALB/target group → MSK → RDS (take snapshot if needed) → ECR repos → secrets.
